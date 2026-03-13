@@ -50,3 +50,16 @@ cp -R skills/public/n8n-builder ~/.openclaw/workspace/skills/public/
 - Best used with both n8n API access and n8n-MCP.
 - Prefer read-only discovery first, then mutation.
 - Do not edit production workflows directly when a test copy is possible.
+
+Example helper commands:
+
+```bash
+# safer workflow operations
+python3 skills/public/n8n-builder/scripts/n8n_safe_ops.py list --limit 10 --pretty
+python3 skills/public/n8n-builder/scripts/n8n_safe_ops.py get --id <workflow-id> --pretty
+python3 skills/public/n8n-builder/scripts/n8n_safe_ops.py update --id <workflow-id> --file workflow.json --pretty
+python3 skills/public/n8n-builder/scripts/n8n_safe_ops.py activate --id <workflow-id> --pretty
+
+# webhook verification after activation
+python3 skills/public/n8n-builder/scripts/webhook_smoke_test.py https://example.com/webhook/test --expect-content-type text/html
+```

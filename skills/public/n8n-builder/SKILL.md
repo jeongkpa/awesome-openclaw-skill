@@ -208,5 +208,11 @@ Read these bundled references when needed:
 - `references/build-patterns.md` — practical workflow-building patterns and safety rules
 - `references/mcp-usage.md` — how to use n8n-MCP for node/template research
 - `references/live-notes.md` — observations from real n8n Cloud testing
+- `references/scripts.md` — helper script usage and examples
 
-Use these scripts/resources as local examples, not blind deployment artifacts.
+Bundled helper scripts:
+- `scripts/n8n_safe_ops.py` — safer API operations with retry and method fallbacks
+- `scripts/webhook_smoke_test.py` — quick deployed-webhook verification
+- `scripts/example-webhook-html.json` — minimal HTML webhook example
+
+Use these scripts/resources as local examples and helpers, not blind deployment artifacts.

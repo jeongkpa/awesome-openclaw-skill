@@ -1,6 +1,6 @@
 ---
 name: n8n-builder
-description: Build, inspect, validate, test, and safely update n8n workflows using a hybrid approach: n8n-MCP for node/template research and direct n8n API operations for deployment. Use when creating new n8n workflows, modifying existing workflows, selecting the right nodes, researching node properties or template patterns, validating workflow JSON before deployment, building webhook/schedule/AI-agent automations, troubleshooting n8n workflow structure, or wrapping n8n changes in a safer test-first process. Prefer read-only discovery first, then create/update only after the workflow shape is clear.
+description: "Build, inspect, validate, test, and safely update n8n workflows using a hybrid approach: n8n-MCP for node/template research and direct n8n API operations for deployment. Use when creating new n8n workflows, modifying existing workflows, selecting the right nodes, researching node properties or template patterns, validating workflow JSON before deployment, building webhook/schedule/AI-agent automations, troubleshooting n8n workflow structure, or wrapping n8n changes in a safer test-first process. Prefer read-only discovery first, then create/update only after the workflow shape is clear."
 ---
 
 # n8n Builder

@@ -1,0 +1,65 @@
+{
+  "name": "OpenClaw Test Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "openclaw-test",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node-1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [240, 300],
+      "webhookId": "openclaw-test-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "html-field-1",
+              "name": "html",
+              "value": "<!doctype html><html><body><h1>Webhook 테스트 성공</h1><p>served by n8n</p></body></html>",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-node-1",
+      "name": "Set HTML",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": 200,
+          "contentType": "text/html; charset=utf-8"
+        }
+      },
+      "id": "respond-node-1",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Set HTML", "type": "main", "index": 0 }]]
+    },
+    "Set HTML": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

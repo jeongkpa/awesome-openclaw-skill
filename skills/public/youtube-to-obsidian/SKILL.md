@@ -1,11 +1,11 @@
 ---
 name: youtube-to-obsidian
-description: Use yt-dlp plus transcript extraction and Obsidian note generation to turn a YouTube URL into a Markdown note. Trigger when the user wants to save a YouTube video into Obsidian, archive a lecture/video link, extract subtitles or a Whisper transcript, generate a basic summary, and store the result in an Obsidian vault. Best for requests like "save this YouTube video to Obsidian", "make notes from this YouTube link", "download and summarize this lecture", or "archive this video with transcript and summary".
+description: Use yt-dlp plus transcript extraction and Obsidian note generation to turn a YouTube URL into a Markdown note, with optional local video download stored in a persistent Obsidian-adjacent folder. Trigger when the user wants to save a YouTube URL into Obsidian, archive a lecture/video link, extract subtitles or a Whisper transcript, generate a basic summary, and store both the note and downloaded media in durable paths instead of temporary directories.
 ---
 
 # Youtube To Obsidian
 
-Turn a YouTube link into an Obsidian note with metadata, transcript, and summary.
+Turn a YouTube link into an Obsidian note with metadata, transcript, summary, and optional persistent local video storage.
 
 ## Quick start
 
@@ -14,12 +14,13 @@ Use this skill when the user gives a YouTube URL and wants one or more of:
 - transcript captured
 - summary generated
 - note saved into Obsidian
-- optional audio/video downloaded
+- video downloaded into a persistent folder
 
 Collect these inputs before running:
 - `url` (required)
 - `vault_path` (required unless the vault is already known)
-- `folder` (optional, default `Inbox/YouTube`)
+- `folder` (optional, default `Ingest/YouTube`)
+- `media_folder` (optional, default `Ingest/YouTube Media`)
 - `download_media` (optional, default `false`)
 - `whisper_model` (optional, default `base`)
 
@@ -28,7 +29,7 @@ Collect these inputs before running:
 1. Validate inputs.
 - Confirm the URL is a YouTube watch/share URL.
 - Confirm the Obsidian vault path exists.
-- Create the target folder if missing.
+- Create the target note folder and media folder if missing.
 
 2. Check runtime dependencies.
 - Prefer Python `yt_dlp` module.
@@ -39,14 +40,15 @@ Collect these inputs before running:
 
 3. Collect source data.
 - Use `yt-dlp` to extract metadata.
+- If `download_media=true`, download the video into a durable media folder under the vault.
 - Try manual subtitles first.
 - Try auto-generated subtitles second.
-- If no subtitles exist and transcription is requested, download audio and transcribe locally with Whisper.
+- If no subtitles exist, extract audio from the downloaded video and transcribe locally with Whisper.
 
 4. Normalize transcript.
 - Produce plain text transcript.
 - Remove noisy timestamp formatting for the main note body.
-- Keep raw transcript file in the work directory for debugging.
+- Keep subtitle or transcript text files in a durable work subfolder near the media output.
 - Deduplicate repeated adjacent lines.
 
 5. Summarize conservatively.
@@ -59,21 +61,18 @@ Collect these inputs before running:
 
 6. Save to Obsidian.
 - Create a Markdown note with frontmatter.
-- Include metadata, source URL, summary, key points, and transcript.
-- Return the saved note path and any downloaded media paths.
+- Include metadata, source URL, summary, key points, transcript, note path, media path, and transcript file path.
+- Return the saved note path and media path.
 
-## Tested path
+## Persistent storage rule
 
-Validated against a real run with:
-- vault path: `~/Documents/fran`
-- target folder: `Ingest/YouTube`
-- test URL: `https://youtu.be/PNpQT87vQ5Q`
+Do not leave downloaded media only in `/tmp`.
 
-Observed behavior during testing:
-- metadata extraction succeeded
-- subtitle download failed because the video had no subtitles
-- fallback to audio download + Whisper succeeded
-- note write to Obsidian succeeded
+Default durable paths:
+- note folder: `Ingest/YouTube`
+- media folder: `Ingest/YouTube Media`
+
+If transcription work files are needed, store them in a hidden work subfolder under the media folder rather than in a temporary system directory.
 
 ## Output format
 
@@ -86,6 +85,8 @@ Write the Obsidian note in this structure:
 - key points
 - action items
 - transcript
+- video path
+- transcript file path
 
 See `references/note-template.md` for the default structure.
 
@@ -99,7 +100,7 @@ See `references/note-template.md` for the default structure.
   - metadata only
   - metadata + transcript
   - metadata + transcript + summary
-  - full success with Obsidian save
+  - full success with Obsidian save + media path
 
 ## Failure handling
 
@@ -112,7 +113,7 @@ See `references/note-template.md` for the default structure.
 ## Resources
 
 ### scripts/
-- `youtube_to_obsidian.py`: main pipeline script for metadata extraction, transcript capture, summarization, and note writing.
+- `youtube_to_obsidian.py`: main pipeline script for metadata extraction, transcript capture, summarization, durable media storage, and note writing.
 
 ### references/
 - `note-template.md`: default Obsidian note layout and frontmatter schema.

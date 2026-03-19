@@ -89,15 +89,30 @@ def clean_vtt_or_srt(path: Path) -> str:
     return "\n".join(dedupe_adjacent(lines)).strip()
 
 
-def download_audio(url: str, outdir: Path) -> Path:
+def download_video(url: str, outdir: Path, stem: str) -> Path:
     if not shutil.which("yt-dlp"):
-        raise RuntimeError("yt-dlp CLI is required for audio download fallback.")
-    target = outdir / "audio.%(ext)s"
-    run(["yt-dlp", "-f", "bestaudio/best", "-o", str(target), url])
-    files = list(outdir.glob("audio.*"))
+        raise RuntimeError("yt-dlp CLI is required for video download.")
+    outdir.mkdir(parents=True, exist_ok=True)
+    target = outdir / f"{stem}.%(ext)s"
+    run(["yt-dlp", "-f", "bv*+ba/b", "--merge-output-format", "mp4", "-o", str(target), url])
+    files = sorted([p for p in outdir.glob(f"{stem}.*") if p.suffix.lower() != ".part"])
     if not files:
-        raise RuntimeError("Audio download failed.")
-    return files[0]
+        raise RuntimeError("Video download failed.")
+    preferred = [p for p in files if p.suffix.lower() == ".mp4"]
+    return preferred[0] if preferred else files[0]
+
+
+def extract_audio_from_video(video_path: Path, outdir: Path) -> Path:
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError("ffmpeg is required for transcription fallback.")
+    outdir.mkdir(parents=True, exist_ok=True)
+    audio_path = outdir / f"{video_path.stem}.mp3"
+    run([
+        "ffmpeg", "-y", "-i", str(video_path), "-vn", "-acodec", "mp3", str(audio_path)
+    ])
+    if not audio_path.exists():
+        raise RuntimeError("Audio extraction from video failed.")
+    return audio_path
 
 
 def transcribe_with_whisper(audio_path: Path, outdir: Path, model: str = "base") -> Path:
@@ -200,7 +215,7 @@ def human_duration(seconds: Optional[int]) -> str:
     return f"{m}:{s:02d}"
 
 
-def write_note(vault_path: Path, folder: str, info: dict, transcript: str, summary: dict) -> Path:
+def write_note(vault_path: Path, folder: str, info: dict, transcript: str, summary: dict, media_path: Optional[Path], transcript_path: Optional[Path]) -> Path:
     target_dir = vault_path / folder
     target_dir.mkdir(parents=True, exist_ok=True)
     title = info.get("title") or "Untitled YouTube Video"
@@ -209,6 +224,8 @@ def write_note(vault_path: Path, folder: str, info: dict, transcript: str, summa
     published = info.get("upload_date") or ""
     if len(published) == 8:
         published = f"{published[:4]}-{published[4:6]}-{published[6:8]}"
+    media_line = str(media_path) if media_path else ""
+    transcript_file_line = str(transcript_path) if transcript_path else ""
     content = textwrap.dedent(f"""
 ---
 title: {title}
@@ -218,6 +235,8 @@ video_id: {info.get('id') or ''}
 channel: {info.get('channel') or info.get('uploader') or ''}
 published: {published}
 duration_seconds: {info.get('duration') or ''}
+media_path: {media_line}
+transcript_path: {transcript_file_line}
 tags:
   - youtube
   - inbox
@@ -229,6 +248,8 @@ tags:
 - Channel: {info.get('channel') or info.get('uploader') or ''}
 - Published: {published}
 - Duration: {human_duration(info.get('duration'))}
+- Video Path: {media_line or 'not saved'}
+- Transcript File: {transcript_file_line or 'not saved'}
 
 ## Summary
 
@@ -255,7 +276,8 @@ def main():
     ap.add_argument("url")
     ap.add_argument("--vault-path", required=True)
     ap.add_argument("--folder", default="Inbox/YouTube")
-    ap.add_argument("--work-dir", default="/tmp/youtube-to-obsidian")
+    ap.add_argument("--media-folder", default="Ingest/YouTube Media")
+    ap.add_argument("--work-dir", default=None)
     ap.add_argument("--download-media", action="store_true")
     ap.add_argument("--whisper-model", default="base")
     args = ap.parse_args()
@@ -264,36 +286,60 @@ def main():
     if not vault.exists():
         raise SystemExit(f"Vault path does not exist: {vault}")
 
-    work_dir = Path(args.work_dir).expanduser()
-    work_dir.mkdir(parents=True, exist_ok=True)
-
     print("INFO: extracting metadata", file=sys.stderr)
     info = extract_info(args.url)
+    title = info.get("title") or "Untitled YouTube Video"
+    slug = slugify(title)
+
+    target_note_dir = vault / args.folder
+    target_media_dir = vault / args.media_folder
+    target_note_dir.mkdir(parents=True, exist_ok=True)
+    target_media_dir.mkdir(parents=True, exist_ok=True)
+
+    work_dir = Path(args.work_dir).expanduser() if args.work_dir else (target_media_dir / f".{slug}-work")
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    media_path: Optional[Path] = None
     transcript = ""
+    transcript_file_path: Optional[Path] = None
+
+    if args.download_media:
+        print("INFO: downloading video", file=sys.stderr)
+        media_path = download_video(args.url, target_media_dir, slug)
+        print(f"INFO: video downloaded to {media_path}", file=sys.stderr)
+
     print("INFO: trying subtitle download", file=sys.stderr)
     subtitle_path = try_download_subtitles(args.url, work_dir)
     if subtitle_path:
         print(f"INFO: subtitle found at {subtitle_path}", file=sys.stderr)
         transcript = clean_vtt_or_srt(subtitle_path)
+        transcript_file_path = subtitle_path
     else:
-        print("INFO: subtitles unavailable, falling back to audio + whisper", file=sys.stderr)
+        print("INFO: subtitles unavailable, falling back to video/audio + whisper", file=sys.stderr)
         try:
-            audio_path = download_audio(args.url, work_dir)
-            print(f"INFO: audio downloaded to {audio_path}", file=sys.stderr)
+            if media_path is None:
+                print("INFO: downloading video for transcription fallback", file=sys.stderr)
+                media_path = download_video(args.url, target_media_dir, slug)
+                print(f"INFO: video downloaded to {media_path}", file=sys.stderr)
+            audio_path = extract_audio_from_video(media_path, work_dir)
+            print(f"INFO: audio extracted to {audio_path}", file=sys.stderr)
             txt_path = transcribe_with_whisper(audio_path, work_dir, model=args.whisper_model)
             transcript = normalize_transcript_text(txt_path.read_text(errors="ignore").strip())
+            transcript_file_path = txt_path
         except Exception as e:
             transcript = ""
             print(f"WARN: transcript capture failed: {e}", file=sys.stderr)
 
     print("INFO: generating summary", file=sys.stderr)
-    summary = build_summary(transcript, info.get("title", "Untitled"), info.get("channel", ""))
+    summary = build_summary(transcript, title, info.get("channel", ""))
     print("INFO: writing obsidian note", file=sys.stderr)
-    note = write_note(vault, args.folder, info, transcript, summary)
+    note = write_note(vault, args.folder, info, transcript, summary, media_path, transcript_file_path)
 
     result = {
         "note_path": str(note),
-        "title": info.get("title"),
+        "media_path": str(media_path) if media_path else None,
+        "transcript_path": str(transcript_file_path) if transcript_file_path else None,
+        "title": title,
         "url": info.get("webpage_url") or info.get("original_url"),
         "transcript_available": bool(transcript),
         "summary_available": bool(summary.get("summary")),
